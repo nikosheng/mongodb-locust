@@ -121,12 +121,15 @@ What happens:
    inside the warm-up.
 4. It repeats `load.repeats` times (default 3). With the default settings, one scenario
    takes about 3 x (0.5 + 10) = 31.5 minutes.
+5. After all repeats produce results, it automatically builds the report.
 
 While it runs, watch in Atlas: CPU, disk IOPS, cache evictions, opcounters, and slow queries
 in the Query Profiler. Also watch the load generator's own CPU; if it is saturated, your numbers
 reflect the client, not the database.
 
-## 10. Build the report
+## 10. Find the report
+The `run` command builds the report automatically. To rebuild it from saved results without
+running the load test again, use:
 ```bash
 python bench.py report --scenario popular_tag
 ```
@@ -134,6 +137,8 @@ Output goes to `results/report_<scenario>/`:
 - `report.md`: aggregate p50, p95 and p99, RPS and error rate at the configured user count (medians across repeats), p95 per query shape, and PASS/FAIL against `thresholds`.
 - `latency.png`: p50/p95/p99 per query shape at the configured user count.
 - `summary.csv`: the raw table.
+
+The report aggregates all saved runs for the selected scenario, including earlier invocations.
 
 ## 11. Read the results
 - **Healthy:** p95 grows slowly with users, error rate stays near 0, CPU stays under about 80%.
@@ -144,7 +149,7 @@ Output goes to `results/report_<scenario>/`:
 ## 12. Repeat for other use cases
 ```bash
 for s in popular_tag rare_tag multi_tag_and multi_tag_any tag_with_region tag_hydrated attr_then_lookup not_tag mixed; do
-  python bench.py run --scenario $s && python bench.py report --scenario $s
+  python bench.py run --scenario $s
 done
 ```
 The data and indexes are reused; only the query mix changes. Before a scenario sweep, make sure

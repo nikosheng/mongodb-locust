@@ -20,7 +20,7 @@ def main():
     sub.add_parser("index", parents=[common], help="create indexes")
     sub.add_parser("verify", parents=[common], help="check data, indexes, tag distribution")
     sub.add_parser("explain", parents=[common], help="explain executionStats for the active scenario")
-    sub.add_parser("run", parents=[common], help="run the Locust load test")
+    sub.add_parser("run", parents=[common], help="run the Locust load test and build the report")
     sub.add_parser("report", parents=[common], help="build report from results")
     a = sub.add_parser("all", parents=[common], help="generate, index, verify, explain, run, report")
     a.add_argument("--drop", action="store_true")
@@ -53,7 +53,10 @@ def main():
 
     def do_run():
         from bench.runner import run_scenario
-        run_scenario(cfg)
+        runs = run_scenario(cfg)
+        if not runs or any(not (run_dir / "steps.csv").is_file() for run_dir in runs):
+            raise SystemExit("Load test did not produce results for every repeat; report not generated")
+        do_report()
 
     def do_report():
         from bench.report import report
@@ -78,7 +81,6 @@ def main():
             sys.exit("verify failed")
         do_explain()
         do_run()
-        do_report()
 
 
 if __name__ == "__main__":

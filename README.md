@@ -17,9 +17,9 @@ python bench.py generate --drop      # Faker data -> digital_customer + digital_
 python bench.py index                # create indexes
 python bench.py verify               # counts, indexes, tag distribution
 python bench.py explain              # explain executionStats for the active scenario
-python bench.py run                  # Locust: warm-up + constant users, repeated load.repeats times
-python bench.py report               # results/report_<scenario>/report.md + chart
-python bench.py all                  # everything above
+python bench.py run                  # Locust repeats, then results/report_<scenario>/report.md + chart
+python bench.py report               # rebuild the report from saved results (optional)
+python bench.py all                  # generate, index, verify, explain, run and report
 ```
 Overrides without editing the file: `--scenario rare_tag`, `--customers 5000000`, `--repeats 1`.
 
@@ -32,6 +32,7 @@ Add a use case by adding a definition in YAML (or a builder in `bench/scenarios.
 
 ## Notes
 - Each scenario run is stand-alone; there is no cross-model comparison.
+- Reports aggregate all saved runs for the selected scenario, including earlier invocations.
 - Warm-up is automatically calculated as `ceil(users / spawn_rate) + 20` seconds and excluded from results. Results are measured at a constant `load.users`, then medians across repeats (`--users N` to override). Startup delays can exceed the estimate; check for a ramp-up warning.
 - Run the load generator in the same region as the cluster, and watch its CPU.
 - `generate` stores a data fingerprint; `run` warns if the data doesn't match the config.
