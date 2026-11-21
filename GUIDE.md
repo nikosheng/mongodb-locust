@@ -33,6 +33,7 @@ MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/
 | `scenario.lookup_style` | `simple` or `pipeline` join form |
 | `load.users` / `load.duration_seconds` | Constant concurrent users and measured window |
 | `load.spawn_rate` | Target number of users started per second during ramp-up |
+| `load.rps_exclude_seconds` | Startup time omitted from throughput after warm-up (default 10 seconds) |
 | `thresholds` | Your pass/fail targets (placeholders: p95 <= 200 ms, errors <= 0.1%) |
 
 ### Automatic warm-up
@@ -117,6 +118,10 @@ What happens:
 2. The automatically calculated warm-up stage is **excluded** from the results.
 3. The measured stage then runs at a constant `load.users` (default 100) for `duration_seconds`
    (default 600). Its stats are saved to `results/<timestamp>_<scenario>_r<N>/steps.csv`.
+   Throughput omits the first 10 seconds of this stage (`load.rps_exclude_seconds`),
+   then uses complete wall-clock-aligned 1-second intervals. Partial boundary seconds
+   are omitted, but zero-request seconds are retained. Samples are saved in `rps.csv`.
+   The exclusion is within `duration_seconds`, not added to the test duration.
    Users ramp up at `spawn_rate` per second (100 users at 10/s takes about 10 s), and the ramp falls
    inside the warm-up.
 4. It repeats `load.repeats` times (default 3). With the default settings, one scenario
@@ -134,11 +139,18 @@ running the load test again, use:
 python bench.py report --scenario popular_tag
 ```
 Output goes to `results/report_<scenario>/`:
-- `report.md`: aggregate p50, p95 and p99, RPS and error rate at the configured user count (medians across repeats), p95 per query shape, and PASS/FAIL against `thresholds`.
+- `report.md`: aggregate p50, p95 and p99, average/median/max RPS and error rate at the configured user count, p95 per query shape, and PASS/FAIL against `thresholds`. Values are medians across repeats except max RPS, which is the highest observed 1-second peak across all repeats.
 - `latency.png`: p50/p95/p99 per query shape at the configured user count.
 - `summary.csv`: the raw table.
 
 The report aggregates all saved runs for the selected scenario, including earlier invocations.
+Average and median RPS are computed per run from the retained 1-second samples;
+the report then takes medians of those per-run values. Request counts, errors and
+latency statistics still cover the full measured stage, excluding warm-up.
+Runs too short to retain any complete intervals have unavailable throughput, not
+zero throughput. Older runs only have an untrimmed average: their median/max RPS
+are unavailable. Rebuilding a report cannot reconstruct those missing samples;
+rerun benchmarks for comparable startup-trimmed throughput.
 
 ## 11. Read the results
 - **Healthy:** p95 grows slowly with users, error rate stays near 0, CPU stays under about 80%.
@@ -157,7 +169,7 @@ The data and indexes are reused; only the query mix changes. Before a scenario s
 
 ## 13. Reproducibility checklist
 Each run folder holds `config.effective.yaml` (secrets are not written, only `${MONGODB_URI}`),
-`meta.json` (server version, pymongo version, customer count) and `steps.csv`. To compare runs
+`meta.json` (server version, pymongo version, customer count), `steps.csv` and `rps.csv`. To compare runs
 fairly, keep these the same: cluster tier, data (same seed and customer count), user count and duration, client
 host, and time of day if the cluster is shared.
 

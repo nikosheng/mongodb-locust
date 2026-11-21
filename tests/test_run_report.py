@@ -82,6 +82,53 @@ class RunReportTest(unittest.TestCase):
         run.assert_not_called()
         self.assertTrue((self.base / "report_popular_tag" / "report.md").is_file())
 
+    def test_reports_interval_median_and_highest_peak_across_runs(self):
+        from bench.report import report
+        import pandas as pd
+
+        for name, median, peak in [("20260101_000000_popular_tag_r1", 20, 40),
+                                   ("20260102_000000_popular_tag_r2", 30, 80)]:
+            run = self.make_run(name)
+            (run / "steps.csv").write_text(
+                "name,stage,users,requests,failures,rps,avg_rps,median_rps,max_rps,rps_samples,rps_exclude_seconds,avg_ms,p50_ms,p95_ms,p99_ms,max_ms\n"
+                f"Aggregated,measure,10,100,0,10,15,{median},{peak},20,10,2,2,3,4,5\n"
+            )
+        report(self.cfg)
+        out = self.base / "report_popular_tag"
+        summary = pd.read_csv(out / "summary.csv").iloc[0]
+        self.assertEqual(summary["avg_rps"], 15)
+        self.assertEqual(summary["median_rps"], 25)
+        self.assertEqual(summary["max_rps"], 80)
+        self.assertIn("10s", (out / "report.md").read_text())
+
+    def test_legacy_report_marks_interval_metrics_unavailable(self):
+        from bench.report import report
+        import pandas as pd
+
+        self.make_run("20260101_000000_popular_tag_r1")
+        report(self.cfg)
+        out = self.base / "report_popular_tag"
+        summary = pd.read_csv(out / "summary.csv").iloc[0]
+        self.assertEqual(summary["avg_rps"], 10)
+        self.assertTrue(pd.isna(summary["median_rps"]))
+        self.assertTrue(pd.isna(summary["max_rps"]))
+        text = (out / "report.md").read_text()
+        self.assertIn("Legacy results", text)
+        self.assertIn("N/A", text)
+
+    def test_short_new_run_does_not_fall_back_to_untrimmed_rps(self):
+        from bench.report import report
+        import pandas as pd
+
+        run = self.make_run("20260101_000000_popular_tag_r1")
+        (run / "steps.csv").write_text(
+            "name,stage,users,requests,failures,rps,avg_rps,median_rps,max_rps,rps_samples,rps_exclude_seconds,avg_ms,p50_ms,p95_ms,p99_ms,max_ms\n"
+            "Aggregated,measure,10,100,0,10,,,,0,10,2,2,3,4,5\n"
+        )
+        report(self.cfg)
+        summary = pd.read_csv(self.base / "report_popular_tag/summary.csv").iloc[0]
+        self.assertTrue(pd.isna(summary["avg_rps"]))
+
 
 if __name__ == "__main__":
     unittest.main()

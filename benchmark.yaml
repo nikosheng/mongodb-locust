@@ -69,6 +69,7 @@ scenario:
 load:
   users: 100                    # constant concurrent users
   duration_seconds: 120         # measured window, after warm-up
+  rps_exclude_seconds: 10        # omit startup from throughput; complete 1-second samples only
   spawn_rate: 10                # users started per second; warm-up is calculated automatically
   think_time_ms: 0
   repeats: 1

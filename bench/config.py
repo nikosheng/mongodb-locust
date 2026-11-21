@@ -120,6 +120,7 @@ class Scenario(BaseModel):
 class Load(BaseModel):
     users: int = Field(gt=0)
     duration_seconds: int = Field(gt=0)
+    rps_exclude_seconds: int = Field(10, ge=0)
     spawn_rate: float = Field(10, gt=0)
     think_time_ms: int = 0
     repeats: int = 1

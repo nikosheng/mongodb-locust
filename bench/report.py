@@ -13,8 +13,19 @@ def report(cfg, scenario=None):
     df = pd.concat([pd.read_csv(d / "steps.csv").assign(run=d.name) for d in dirs])
     meta = json.loads((dirs[-1] / "meta.json").read_text())
 
-    num = ["requests", "failures", "rps", "avg_ms", "p50_ms", "p95_ms", "p99_ms", "max_ms"]
+    # Old runs only contain a full-stage average, not interval throughput.
+    legacy = df["rps_samples"].isna() if "rps_samples" in df else pd.Series(True, index=df.index)
+    if "avg_rps" not in df:
+        df["avg_rps"] = df["rps"]
+    else:
+        df["avg_rps"] = df["avg_rps"].where(~legacy, df["rps"])
+    for col in ["median_rps", "max_rps"]:
+        if col not in df:
+            df[col] = float("nan")
+    num = ["requests", "failures", "rps", "avg_rps", "median_rps", "avg_ms", "p50_ms", "p95_ms", "p99_ms", "max_ms"]
     agg = df.groupby(["name", "stage", "users"], as_index=False)[num].median()
+    peaks = df.groupby(["name", "stage", "users"], as_index=False)["max_rps"].max()
+    agg = agg.merge(peaks, on=["name", "stage", "users"])
     agg["err_rate"] = (agg["failures"] / agg["requests"].clip(lower=1)).round(5)
 
     total = agg[agg["name"] == "Aggregated"].sort_values("users")
@@ -22,13 +33,22 @@ def report(cfg, scenario=None):
         f"# Benchmark report: {scenario}",
         "",
         f"- Server: MongoDB {meta['server_version']}  |  pymongo {meta['pymongo']}  |  customers: {meta['customers']:,}",
-        f"- Runs: {len(dirs)} (values are medians across runs)",
-        "",
-        "## Aggregate (steady state)",
-        "",
-        total[["users", "requests", "rps", "avg_ms", "p50_ms", "p95_ms", "p99_ms", "max_ms", "err_rate"]]
-        .to_markdown(index=False),
-        "",
+        f"- Runs: {len(dirs)} (values are medians across runs, except max_rps: highest observed across runs)",
+        "- Throughput: avg_rps and median_rps summarize retained complete 1-second intervals; max_rps is the peak 1-second throughput. Zero-request intervals are included.",
+        "- Request totals and latency metrics cover the full measured stage, excluding warm-up.",
+    ]
+    exclusions = sorted(df["rps_exclude_seconds"].dropna().unique()) if "rps_exclude_seconds" in df else []
+    if exclusions:
+        lines.append("- Throughput startup exclusion after warm-up: " + ", ".join(f"{v:g}s" for v in exclusions)
+                     + "; partial boundary seconds are also omitted.")
+    if legacy.any():
+        lines.append("- Legacy results are included: their avg_rps covers the full measured stage; median_rps/max_rps are unavailable. New throughput metrics summarize only runs with samples. Rerun benchmarks for comparable trimmed results.")
+    if "rps_samples" in df and (df["rps_samples"] == 0).any():
+        lines.append("- Some runs have no complete intervals after startup exclusion; their throughput metrics are unavailable (N/A).")
+    lines += [
+        "", "## Aggregate (steady state)", "",
+        total[["users", "requests", "avg_rps", "median_rps", "max_rps", "avg_ms", "p50_ms", "p95_ms", "p99_ms", "max_ms", "err_rate"]]
+        .astype(object).fillna("N/A").to_markdown(index=False), "",
     ]
     if (agg["name"] != "Aggregated").any():
         lines += ["## Per query shape (p95 ms)", ""]
@@ -79,6 +99,7 @@ def report(cfg, scenario=None):
     ax.grid(alpha=0.3)
     fig.tight_layout()
     fig.savefig(out / "latency.png", dpi=120)
+    plt.close(fig)
 
     (out / "report.md").write_text("\n".join(lines))
     agg.to_csv(out / "summary.csv", index=False)

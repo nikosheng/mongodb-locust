@@ -34,6 +34,8 @@ Add a use case by adding a definition in YAML (or a builder in `bench/scenarios.
 - Each scenario run is stand-alone; there is no cross-model comparison.
 - Reports aggregate all saved runs for the selected scenario, including earlier invocations.
 - Warm-up is automatically calculated as `ceil(users / spawn_rate) + 20` seconds and excluded from results. Results are measured at a constant `load.users`, then medians across repeats (`--users N` to override). Startup delays can exceed the estimate; check for a ramp-up warning.
+- Throughput excludes the first `load.rps_exclude_seconds` (default **10 seconds**) after warm-up. `avg_rps`, `median_rps`, and `max_rps` use complete 1-second intervals, including zero-request seconds; partial boundary seconds are omitted. `max_rps` is the highest peak across repeats, while other values are medians across repeats. Retained samples are saved in each run's `rps.csv`.
+- Request totals and latency statistics still cover the full measured stage. Older results lack interval metrics: their average remains untrimmed and median/peak RPS show as unavailable. Run a new benchmark to obtain the new metrics; rebuilding a report cannot recover missing samples.
 - Run the load generator in the same region as the cluster, and watch its CPU.
 - `generate` stores a data fingerprint; `run` warns if the data doesn't match the config.
 - Pages start from a random `customer_id` so repeated calls don't hit the same cached docs.
