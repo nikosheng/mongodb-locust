@@ -1,0 +1,82 @@
+# Single config for the whole benchmark. Use ${ENV_VAR} to reference secrets from .env / environment.
+
+atlas:
+  uri: ${MONGODB_URI}
+  database: clientel_bench
+  collections:
+    customer: digital_customer
+    tag: digital_customer_tag
+  read_preference: primary
+  read_concern: local
+  max_pool_size: 200
+
+data:
+  seed: 42
+  customers: 1000000            # adjust here (or --customers N)
+  agents: 2000
+  max_tags_per_customer: 60
+  batch_size: 5000
+  shard_size: 25000             # customers per generation task
+  workers: 4                    # data generation processes
+  locale: en_US
+  regions: [NSW, VIC, QLD, WA, SA, TAS, ACT, NT]
+  policy_lines: {auto: 0.40, home: 0.30, life: 0.15, health: 0.15}
+  # Tag pools used by scenarios: popular freq >= 0.2, mid 0.01-0.2, rare < 0.01
+  tag_catalog:
+    - {code: BLUE,            category: design,    freq: 0.40}
+    - {code: VIP,             category: value,     freq: 0.30}
+    - {code: RENEWAL_DUE,     category: lifecycle, freq: 0.35}
+    - {code: EMAIL_OPT_IN,    category: consent,   freq: 0.60}
+    - {code: SMS_OPT_IN,      category: consent,   freq: 0.50}
+    - {code: PAPERLESS,       category: consent,   freq: 0.45}
+    - {code: AUTO_RENEW,      category: lifecycle, freq: 0.40}
+    - {code: DIGITAL_ACTIVE,  category: engagement, freq: 0.55}
+    - {code: MULTI_POLICY,    category: value,     freq: 0.35}
+    - {code: CROSS_SELL_AUTO, category: sales,     freq: 0.20}
+    - {code: CROSS_SELL_HOME, category: sales,     freq: 0.15}
+    - {code: HIGH_VALUE,      category: value,     freq: 0.15}
+    - {code: SENIOR,          category: demographic, freq: 0.12}
+    - {code: NEW_CUSTOMER,    category: lifecycle, freq: 0.10}
+    - {code: LOYALTY_GOLD,    category: value,     freq: 0.10}
+    - {code: CLAIM_OPEN,      category: claims,    freq: 0.08}
+    - {code: LAPSED_RISK,     category: risk,      freq: 0.06}
+    - {code: REFERRAL,        category: sales,     freq: 0.05}
+    - {code: COMPLAINT,       category: service,   freq: 0.02}
+    - {code: FRAUD_WATCH,     category: risk,      freq: 0.0008}
+    - {code: SANCTION_REVIEW, category: risk,      freq: 0.0005}
+
+# Switch the use case with `active` (or --scenario NAME). Each scenario is benchmarked on its own.
+scenario:
+  active: popular_tag
+  page_size: 20
+  lookup_style: simple          # simple (localField/foreignField) | pipeline (let + $expr sub-pipeline)
+  definitions:
+    # ---- tag-first: start from digital_customer_tag, $lookup digital_customer ----
+    popular_tag:     {pipeline: tag_first, tag_pool: popular}
+    rare_tag:        {pipeline: tag_first, tag_pool: rare}
+    multi_tag_and:   {pipeline: tag_first, tag_pool: popular, n_tags: 2, mode: and}
+    multi_tag_any:   {pipeline: tag_first, tag_pool: mid, n_tags: 3, mode: any}
+    tag_with_region: {pipeline: tag_first, tag_pool: popular, customer_filter: [region]}
+    tag_hydrated:    {pipeline: tag_first, tag_pool: mid, hydrate_tags: true}
+    # ---- customer-first: start from digital_customer, $lookup digital_customer_tag ----
+    attr_then_lookup: {pipeline: customer_first, customer_filter: [region, policy_line]}
+    not_tag:          {pipeline: customer_first, customer_filter: [region], tag_pool: popular, exclude_tag: true}
+    # ---- weighted blend (tag-first dominant) ----
+    mixed:
+      weights: {popular_tag: 25, rare_tag: 15, multi_tag_and: 15, multi_tag_any: 10,
+                tag_with_region: 10, tag_hydrated: 10, attr_then_lookup: 10, not_tag: 5}
+
+load:
+  users: 100                    # constant concurrent users
+  duration_seconds: 600         # measured window, after warm-up
+  spawn_rate: 10                # users started per second; warm-up is calculated automatically
+  think_time_ms: 0
+  repeats: 3
+  workers: 4                    # locust worker processes
+
+thresholds:                     # optional pass/fail on the aggregate
+  p95_ms: 200
+  max_error_rate: 0.001
+
+output:
+  dir: results
