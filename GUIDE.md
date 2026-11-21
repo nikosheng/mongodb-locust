@@ -11,8 +11,8 @@ then repeating for others. Everything is controlled by `benchmark.yaml`.
 
 ## 1. Install
 ```bash
-cd mongodb-join-perf
-python3 -m venv .venv && source .venv/bin/activate
+cd mongodb-locust
+python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python -c "import pymongo; print(pymongo.version)"   # expect 4.20.1
 ```

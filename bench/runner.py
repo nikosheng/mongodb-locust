@@ -38,11 +38,11 @@ def run_scenario(cfg, repeats=None):
         env = dict(os.environ,
                    BENCH_CONFIG=str((run_dir / "config.effective.yaml").resolve()),
                    BENCH_RUN_DIR=str(run_dir.resolve()),
-                   PYTHONPATH=str(ROOT.parent))
-        cmd = [sys.executable, "-m", "locust", "-f", str(ROOT / "loadtest" / "locustfile.py"),
+                   PYTHONPATH=str(ROOT))
+        cmd = [sys.executable, "-m", "locust", "-f", str(Path(__file__).resolve().parent / "loadtest" / "locustfile.py"),
                "--headless", "--processes", str(cfg.load.workers), "--loglevel", "WARNING"]
         print(f"[run {r}/{repeats}] scenario={cfg.scenario.active}, "
               f"automatic warm-up={cfg.load.warmup_seconds}s -> {run_dir}", flush=True)
-        subprocess.run(cmd, env=env, cwd=str(ROOT.parent), check=False)
+        subprocess.run(cmd, env=env, cwd=str(ROOT), check=False)
         runs.append(run_dir)
     return runs

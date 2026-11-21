@@ -6,7 +6,7 @@ Everything is configured in **`benchmark.yaml`**. Secrets are referenced as `${M
 
 ## Setup
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
+python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 # .env must define MONGODB_URI
 ```
